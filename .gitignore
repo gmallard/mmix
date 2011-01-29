@@ -1,4 +1,21 @@
 #
+# C artifacts
+#
 *.c
 *.h
+*.o
+#
+# tex artifacts
+#
+*.tex
+*.scn
+*.idx
+*.log
+#
+# Compile artifacts
+#
+*.mmo
+# Listings
+*.txt
+
 
