@@ -1,4 +1,13 @@
 #
 *.c
 *.h
+# Add after 'make doc'.
+# I think these are build artifacts.
+*.dvi
+*.idx
+*.log
+*.scn
+*.tex
+*.toc
+
 
