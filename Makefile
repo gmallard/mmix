@@ -9,8 +9,8 @@
 CFLAGS = -g
 
 #   Uncomment the second line if you use pdftex to bypass .dvi files:
-PDFTEX = dvipdfm
-#PDFTEX = pdftex
+#PDFTEX = dvipdfm
+PDFTEX = pdftex
 
 .SUFFIXES: .dvi .tex .w .ps .pdf .mmo .mmb .mms
 
