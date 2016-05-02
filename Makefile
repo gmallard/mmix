@@ -73,6 +73,10 @@ all:    mmixal mmix mmotype mmmix
 clean:
 	rm -f *~ *.o *.c *.h *.tex *.log *.dvi *.toc *.idx *.scn *.ps core
 
+
+cleancomp:
+	rm -f *.lst *.mmo
+
 mmix-pipe.o: mmix-pipe.c abstime
 	./abstime > abstime.h
 	$(CC) $(CFLAGS) -c mmix-pipe.c
