@@ -13,4 +13,8 @@
 *.swp
 # Object files
 *.o
+# MMIX listings
+*.lst
+# MMIX objects (executable by the simulator)
+*.mmo
 
