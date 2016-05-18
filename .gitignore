@@ -13,9 +13,12 @@
 *.log
 #
 # Compile artifacts
-#
 *.mmo
 # Listings
+*.lst
 *.txt
-
-
+*.scn
+*.tex
+*.toc
+# Inflight vi files
+*.swp
