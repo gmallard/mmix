@@ -9,5 +9,5 @@
 *.scn
 *.tex
 *.toc
-
-
+# Inflight vi files
+*.swp
