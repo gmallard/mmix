@@ -11,3 +11,6 @@
 *.toc
 # Inflight vi files
 *.swp
+# Object files
+*.o
+
