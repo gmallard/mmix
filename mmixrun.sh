@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 #
 echo "Run Program $1.mmo"
-./mmix $1.mmo $2
+# The simulator is assumed to be in $PATH
+mmix $1.mmo $2
 
