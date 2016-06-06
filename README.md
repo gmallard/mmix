@@ -7,10 +7,10 @@
 ## This Project ##
 
 This project contains a complete build of the MMIX environment.  Built
-on UBUNTU 14.04.4 system.
+on an OSX 10.9 system.
 
-Binaries are included in the /bin directory.  They will probably run on
-almost any Linux system.
+Binaries are included in the /bin directory.  They might run on
+almost any OSX system.
 
 OSX Binaries are included in the /bin/osx directory.  I hope they run
 in most OX environments.
