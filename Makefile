@@ -9,8 +9,8 @@
 CFLAGS = -g
 
 #   Uncomment the second line if you use pdftex to bypass .dvi files:
-#PDFTEX = dvipdfm
-PDFTEX = pdftex
+PDFTEX = dvipdfm
+#PDFTEX = pdftex
 
 .SUFFIXES: .dvi .tex .w .ps .pdf .mmo .mmb .mms
 
@@ -72,10 +72,6 @@ all:    mmixal mmix mmotype mmmix
 
 clean:
 	rm -f *~ *.o *.c *.h *.tex *.log *.dvi *.toc *.idx *.scn *.ps core
-
-
-cleancomp:
-	rm -f *.lst *.mmo
 
 mmix-pipe.o: mmix-pipe.c abstime
 	./abstime > abstime.h
