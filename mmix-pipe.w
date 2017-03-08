@@ -24,9 +24,8 @@ A lot of subtle things can happen when instructions are executed in parallel.
 Therefore this simulator ranks among the most interesting and instructive
 programs in the author's experience. The author has tried his best to make
 everything correct \dots\ but the chances for error are great. Anyone who
-discovers a bug is therefore urged to report it as soon as possible to
-\.{knuth-bug@@cs.stanford.edu}; then the program will be as useful as
-possible. Rewards will be paid to bug-finders! (Except for bugs in version~0.)
+discovers a bug is therefore urged to report it as soon as possible;
+please see \.{http:/\kern-.1em/mmix.cs.hm.edu/bugs/} for instructions.
 
 It sort of boggles the mind when one realizes that the present program might
 someday be translated by a \CEE/~compiler for \MMIX\ and used to simulate
@@ -35,6 +34,8 @@ someday be translated by a \CEE/~compiler for \MMIX\ and used to simulate
 @ This high-performance prototype of \MMIX\ achieves its efficiency by
 means of ``pipelining,'' a technique of overlapping that is explained
 for the related \.{DLX} computer in Chapter~3 of Hennessy \char`\&\ Patterson's
+@^Hennessy, John LeRoy@>
+@^Patterson, David Andrew@>
 book {\sl Computer Architecture\/} (second edition). Other techniques
 such as ``dynamic scheduling'' and ``multiple issue,'' explained in
 Chapter~4 of that book, are used too.
@@ -202,19 +203,34 @@ bypass the library names here.
 
 @ The |MMIX_init()| routine should be called exactly once, after
 |MMIX_config()| has done its work but before the simulator starts to execute
-any programs. Then |MMIX_run| can be called as often as the user likes.
+any programs. Then |MMIX_run()| can be called as often as the user likes.
+
+The |MMIX_silent()| routine is a noninteractive variant of |MMIX_run()|:
+It will return the value of register |g[255].l| when executing a
+\.{TRAP} \.{0,Halt,0} instruction.
 
 @s octa int
 
 @<External proto...@>=
 Extern void MMIX_init @,@,@[ARGS((void))@];
 Extern void MMIX_run @,@,@[ARGS((int cycs, octa breakpoint))@];
+Extern int MMIX_silent @,@,@[ARGS((void))@];
 
 @ @<External routines@>=
 void MMIX_init()
 {
   register int i,j;
   @<Initialize everything@>;
+}
+@#
+int MMIX_silent()
+{
+  octa breakpoint;
+  @<Local variables@>;
+  while (true) {
+    @<Perform one machine cycle@>;
+    if (halted) return specval(&g[255]).o.l;
+  }
 }
 @#
 void MMIX_run(cycs,breakpoint)
@@ -2152,7 +2168,8 @@ from the local register ring to virtual memory location |cool_S<<3|.
   cool->z=zero_spec;
   cool->mem_x=true, spec_install(&mem,&cool->x);
   op=STOU; /* this instruction needs to be handled by load/store unit */
-  cool->interim=cool->stack_alert=true;
+  cool->interim=true;
+  cool->stack_alert=!(cool->y.o.h&sign_bit);
   goto dispatch_done;
 }
 
@@ -2264,7 +2281,7 @@ case pushj: {@+register int x=cool->xx;
   cool->rl.o.l=cool_L-x-1;
   new_O=incr(cool_O,x+1);
 }@+break;
-case syncid: if (cool->loc.h&sign_bit) break;
+case syncid:@+if (cool->loc.h&sign_bit) break;
 case go: inst_ptr.p=&cool->go;@+break;
   
 @ We need to know the topmost ``hidden'' element of the register stack
@@ -3593,6 +3610,7 @@ static void flush_cache(c,p,keep)
     else d=c->outbuf.data, c->outbuf.data=p->data, p->data=d;
     dd=c->outbuf.dirty, c->outbuf.dirty=p->dirty, p->dirty=dd;
     for (j=0;j<c->bb>>c->g;j++) p->dirty[j]=false;
+    p->rank=c->bb; /* this many valid bytes */
     startup(&c->flusher,c->copy_out_time); /* will not be aborted */
 }
 
@@ -3633,7 +3651,7 @@ static cacheblock* alloc_slot(c,alf)
   register cacheblock *p,*q;
   if (cache_search(c,alf)) return NULL;
   if (c->flusher.next && c->outbuf.tag.h==alf.h &&
-        !((c->outbuf.tag.l^alf.l)&c->tagmask)) return NULL;
+        !((c->outbuf.tag.l^alf.l)&-c->bb)) return NULL;
   s=cache_addr(c,alf); /* the set corresponding to |alf| */
   if (c->victim) p=choose_victim(c->victim,c->vv,c->vrepl);
   else p=choose_victim(s,c->aa,c->repl);
@@ -3848,13 +3866,14 @@ fact does help us: We know that the flusher coroutine will not be
 aborted until it has run to completion.
 
 Some machines, such as the Alpha 21164, have an additional cache between
+@^Alpha computers@>
 the S-cache and memory, called the B-cache (the ``backup cache''). A B-cache
 could be simulated by extending the logic used here; but such extensions
 of the present program are left to the interested reader.
 
 @<Cases for control of special coroutines@>=
 case flush_to_S: {@+register cache *c=(cache *)data->ptr_a;
-  register int block_diff=Scache->bb-c->bb;
+  register int block_diff=Scache->bb-c->outbuf.rank;
   p=(cacheblock*)data->ptr_b;
  switch (data->state) {
   case 0:@+ if (Scache->lock) wait(1);
@@ -3867,7 +3886,9 @@ case flush_to_S: {@+register cache *c=(cache *)data->ptr_a;
     wait(Scache->access_time);
   case 2: @<Fill |Scache->inbuf| with clean memory data@>;
   case 3: @<Allocate a slot |p| in the S-cache@>;
-    if (block_diff) @<Copy |Scache->inbuf| to slot |p|@>;         
+    if (block_diff) @<Copy |Scache->inbuf| to slot |p|@>@;
+    else@+for (j=0;j<Scache->bb>>3;j++) p->data[j]=c->outbuf.data[j];
+    for (j=0;j<Scache->bb>>Scache->g;j++) p->dirty[j]=false;
   case 4: copy_block(c,&(c->outbuf),Scache,p);
     hit_set=cache_addr(Scache,c->outbuf.tag);@+ use_and_fix(Scache,p);
                    /* |p| not moved */
@@ -3929,7 +3950,7 @@ coroutine; the I-cache or D-cache may also invoke a |fill_from_mem| coroutine,
 if there is no S-cache. When such a coroutine is invoked, it holds
 |mem_lock|, and its caller has gone to sleep.
 A physical memory address is given in |data->z.o|,
-and |data->ptr_a| specifies either |Icache| or |Dcache|.
+and |data->ptr_a| specifies either |Icache|, |Dcache|, or |Scache|.
 Furthermore, |data->ptr_b| specifies a block within that
 cache, determined by the |alloc_slot| routine. The coroutine
 simulates reading the contents of the specified memory location,
@@ -3937,7 +3958,7 @@ places the result in the |x.o| field of its caller's control block,
 and wakes up the caller. It proceeds to fill the cache's |inbuf| and,
 ultimately, the specified cache block, before waking the caller again.
 
-Let |c=data->ptr_b|. The caller is then |c->fill_lock|, if this variable is
+Let |c=data->ptr_a|. The caller is then |c->fill_lock|, if this variable is
 nonnull. However, the caller might not wish to be awoken or to receive
 the data (for example, if it has been aborted). In such cases |c->fill_lock|
 will be~|NULL|; the filling action continues without the wakeup calls.
@@ -4008,12 +4029,13 @@ case fill_from_S: {@+register cache *c=(cache *)data->ptr_a;
     }
   case 3: @<Copy data from |p| into |c->inbuf|@>;
     data->state=4;@+wait(Scache->access_time);
-  case 4:@+ if (c->lock) wait(1);
+  case 4: Scache->lock=NULL; /* we had been holding that lock */
+    data->state=5;
+  case 5:@+ if (c->lock) wait(1);
     set_lock(self,c->lock);
-    Scache->lock=NULL; /* we had been holding that lock */
     load_cache(c,(cacheblock*)data->ptr_b);
-    data->state=5;@+ wait(c->copy_in_time);
-  case 5:@+if (cc) awaken(cc,1); /* second wakeup call */
+    data->state=6;@+ wait(c->copy_in_time);
+  case 6:@+if (cc) awaken(cc,1); /* second wakeup call */
     goto terminate;
   }
 }
@@ -4117,7 +4139,7 @@ case 10: goto terminate;
 }
 
 @ @<Cases 0 through 4, for the D-cache@>=
-case 0:@+ if (Dcache->lock || (j=get_reader(Dcache)<0)) wait(1);
+case 0:@+ if (Dcache->lock || (j=get_reader(Dcache))<0) wait(1);
   startup(&Dcache->reader[j],Dcache->access_time);
   set_lock(self,Dcache->lock);
   i=j=0;
@@ -4140,7 +4162,7 @@ case 2:@+ if (!clean_lock) goto done; /* premature termination */
   if (Dcache->flusher.next) wait(1);
   if (data->i!=sync) goto Sprep;
   data->state=3;
-case 3:@+ if (Dcache->lock || (j=get_reader(Dcache)<0)) wait(1);
+case 3:@+ if (Dcache->lock || (j=get_reader(Dcache))<0) wait(1);
   startup(&Dcache->reader[j],Dcache->access_time);
   set_lock(self,Dcache->lock);
   i=data->y.o.h, j=data->y.o.l;
@@ -4151,7 +4173,7 @@ Dclean_inc: j++;
     wait(Dcache->access_time);
   }
   goto Dclean_loop;
-case 4:@+ if (Dcache->lock || (j=get_reader(Dcache)<0)) wait(1);
+case 4:@+ if (Dcache->lock || (j=get_reader(Dcache))<0) wait(1);
   startup(&Dcache->reader[j],Dcache->access_time);
   set_lock(self,Dcache->lock);
   p=cache_search(Dcache,data->z.o);
@@ -4345,7 +4367,7 @@ static octa phys_addr @,@,@[ARGS((octa,octa))@];
 static octa phys_addr(virt,trans)
   octa virt,trans;
 {@+octa t;
-  t=oandn(trans,page_mask); /* zero out the |ynp| fields of a PTE */
+  t=oandn(trans,page_mask); /* zero out the \\{ynp} fields of a PTE */
   return oplus(t,oand(virt,page_mask));
 }
 
@@ -4598,7 +4620,7 @@ case write_from_wbuf:
     if (ticks.l-write_head->stamp<holding_time && !speed_lock)
       wait(1); /* data too raw */
     if (!Dcache) goto mem_direct; /* not cached */
-    if (Dcache->lock || (j=get_reader(Dcache)<0)) wait(1); /* D-cache busy */
+    if (Dcache->lock || (j=get_reader(Dcache))<0) wait(1); /* D-cache busy */
     startup(&Dcache->reader[j],Dcache->access_time);
     @<Write the data into the D-cache and set |state=4|,
                 if there's a cache hit@>;
@@ -4620,12 +4642,15 @@ register cacheblock *p,*q;
 D-cache (unless it hits in the D-cache), it will go into a secondary cache.
 
 @<Handle write-around when writing to the D-cache@>=
+if (Dcache->filler.next) goto write_restart;
+if ((Scache&&Scache->lock) || (!Scache&&mem_lock)) goto write_restart;
 if (Dcache->flusher.next) wait(1);
 Dcache->outbuf.tag.h=write_head->addr.h;
 Dcache->outbuf.tag.l=write_head->addr.l&(-Dcache->bb);
 for (j=0;j<Dcache->bb>>Dcache->g;j++) Dcache->outbuf.dirty[j]=false;
 Dcache->outbuf.data[(write_head->addr.l&(Dcache->bb-1))>>3]=write_head->o;
 Dcache->outbuf.dirty[(write_head->addr.l&(Dcache->bb-1))>>Dcache->g]=true;
+Dcache->outbuf.rank=Dcache->gg; /* this many valid bytes */
 set_lock(self,wbuf_lock);
 startup(&Dcache->flusher,Dcache->copy_out_time);
 data->state=5;@+ wait(Dcache->copy_out_time);
@@ -4991,7 +5016,7 @@ data->state=ld_ready;
 if (data->i==preld || data->i==prest) goto fin_ex;@+else sleep;
 
 @ If a |prest| instruction makes it to the hot seat,
-we have been assured by the user of |PREST| that the current
+we have been assured by the user of \.{PREST} that the current
 values of bytes in virtual addresses |data->y.o-(data->xx&-Dcache->bb)| through
 |data->y.o+(data->xx&(Dcache->bb-1))|
 are irrelevant. Hence we can pretend that we know they are zero. This
@@ -5417,7 +5442,7 @@ tail->noted=false;
 if (inst_ptr.o.l==breakpoint.l && inst_ptr.o.h==breakpoint.h)
   breakpoint_hit=true;
 
-@ The commands |RESUME|, |SAVE|, |UNSAVE|, and |SYNC| should not have
+@ The commands \.{RESUME}, \.{SAVE}, \.{UNSAVE}, and \.{SYNC} should not have
 nonzero bits in the positions defined here.
 
 @<Global...@>=
@@ -5650,7 +5675,7 @@ if (verbose&issue_bit) {
 
 @d RESUME_AGAIN 0 /* repeat the command in rX as if in location $\rm rW-4$ */
 @d RESUME_CONT 1 /* same, but substitute rY and rZ for operands */
-@d RESUME_SET 2 /* set r[X] to rZ */
+@d RESUME_SET 2 /* set register \$X to rZ */
 @d RESUME_TRANS 3 /* install $\rm(rY,rZ)$ into IT-cache or DT-cache,
         then |RESUME_AGAIN| */
 @d pack_bytes(a,b,c,d) ((((((unsigned)(a)<<8)+(b))<<8)+(c))<<8)+(d)

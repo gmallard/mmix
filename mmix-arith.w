@@ -12,6 +12,7 @@
 @s ff TeX
 @s bool normal @q unreserve a C++ keyword @>
 @s xor normal @q unreserve a C++ keyword @>
+@s bignum int
 
 @* Introduction. The subroutines below are used to simulate 64-bit \MMIX\
 arithmetic on an old-fashioned 32-bit computer---like the one the author
@@ -207,7 +208,7 @@ octabytes $q$ and $r$ such that $(2^{64}x+y)=qz+r$ and $0\le r<z$,
 given octabytes $x$, $y$, and~$z$, assuming that $x<z$.
 (If $x\ge z$, it simply sets $q=x$ and $r=y$.)
 The quotient~$q$ is returned by the subroutine;
-the remainder~$r$ is stored in |aux|.
+the remainder~$r$ is stored in~|aux|.
 @^multiprecision division@>
 
 @<Subr...@>=
@@ -487,6 +488,8 @@ it is tiny and either (i)~it is inexact or (ii)~the underflow trap is enabled.
 The |fpack| routine sets |U_BIT| in |exceptions| if and only if the result is
 tiny, |X_BIT| if and only if the result is inexact.
 @^underflow@>
+@^tininess@>
+@^accuracy loss@>
 
 @d X_BIT (1<<8) /* floating inexact */
 @d Z_BIT (1<<9) /* floating division by zero */
@@ -852,12 +855,12 @@ Some subtleties need to be observed here, in order to
 prevent the sticky bit from being shifted left. If we did not
 shift |yf| left~1 before shifting |zf| to the right, an incorrect
 answer would be obtained in certain cases---for example, if
-$|yf|=2^{54}$, $|zf|=2^{54}+2^{53}-1$, $d=52$.
+$|yf|=2^{54}$, $|zf|=2^{54}+2^{53}-4$, $d=52$.
 
 @<Adjust for difference in exponents@>=
 {
   if (d<=2) zf=shift_right(zf,d,1); /* exact result */
-  else if (d>53) zf.h=0, zf.l=1; /* tricky but OK */
+  else if (d>54) zf.h=0, zf.l=1; /* tricky but OK */
   else {
     if (ys!=zs) d--,xe--,yf=shift_left(yf,1);
     o=zf;
