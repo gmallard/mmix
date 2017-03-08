@@ -17,8 +17,17 @@
 # Listings
 *.lst
 *.txt
+# Add after 'make doc'.
+# I think these are build artifacts.
+*.idx
+*.log
 *.scn
 *.tex
 *.toc
 # Inflight vi files
 *.swp
+# MMIX listings
+*.lst
+# MMIX objects (executable by the simulator)
+*.mmo
+
